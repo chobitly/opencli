@@ -31,3 +31,4 @@ export OPENCLI_CODEX_CDP_ENDPOINT="http://127.0.0.1:9222"
   - *Pro-tip*: You can trigger internal shortcuts by sending them, e.g., `opencli codex send "/review"` or `opencli codex send "$imagegen draw a cat"`.
 - `opencli codex read`: Extracts the entire current thread history and AI reasoning logs into readable text.
 - `opencli codex extract-diff`: Automatically scrapes any visual Patch chunks and Code Diffs the AI generated inside the review UI.
+- `opencli codex model`: Get the currently active AI model.
