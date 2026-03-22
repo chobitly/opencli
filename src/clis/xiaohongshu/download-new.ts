@@ -21,7 +21,7 @@ cli({
   domain: 'www.xiaohongshu.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'url', required: true, positional: true, help: 'Full Note URL (containing xsec_token)' },
+    { name: 'url', required: true, positional: true, help: 'Note URL (supports both full and short links)' },
     { name: 'output', default: './xiaohongshu-downloads', help: 'Output directory' },
   ],
   columns: ['index', 'type', 'status', 'size'],
@@ -29,18 +29,20 @@ cli({
     const fullUrl = kwargs.url;
     const output = kwargs.output;
 
-    // Extract noteId from URL
-    const noteIdMatch = fullUrl.match(/\/explore\/([^/?#]+)/);
-    const noteId = noteIdMatch ? noteIdMatch[1] : null;
-    if (!noteId) {
-       throw new Error('Invalid XHS URL: Could not extract noteId');
-    }
-
-    // Navigate to the full URL
+    // Navigate first (to handle short URL redirects)
     await page.goto(fullUrl);
     
     // Wait for the state to be ready
     await page.wait(2);
+
+    // Extract noteId from the current URL (after potential redirect)
+    const currentUrl = await page.evaluate('window.location.href');
+    const noteIdMatch = currentUrl.match(/\/explore\/([^/?#]+)/);
+    const noteId = noteIdMatch ? noteIdMatch[1] : null;
+
+    if (!noteId) {
+       throw new Error(`Invalid XHS URL: Could not extract noteId from ${currentUrl}`);
+    }
 
     // Extract note info using helper
     const data = await extractNoteData(page, noteId);

@@ -40,6 +40,10 @@ opencli xiaohongshu save "<URL>" [options]
 - `--novideo`: Skip downloading video (downloads only images).
 - `--attachments <name>`: Custom name for the folder containing images/videos (default: `attachments`).
 
+**URL Support:**
+- **Full URL**: Browser address bar URL (e.g., `https://www.xiaohongshu.com/explore/...`).
+- **Short Link**: Mobile app sharing link (e.g., `http://xhslink.com/o/...`).
+
 **Output Format:**
 - **Filename**: `YYYY-MM-DD-Title.md` (Prefixed with publish date).
 - **Metadata (YAML)**:
@@ -59,6 +63,7 @@ Specifically designed to bypass Xiaohongshu's anti-scraping and `blob:` protocol
 opencli xiaohongshu download-new "<URL>" --output <path>
 ```
 - **Feature**: Prioritizes H.265, watermark-free (`No-WM`) video streams.
+- **URL Support**: Supports both full and short URLs.
 
 ---
 
@@ -69,10 +74,11 @@ Generates a Markdown file with remote links only. Use this if you don't need loc
 ```bash
 opencli xiaohongshu export "<URL>" --output <path>
 ```
+- **URL Support**: Supports both full and short URLs.
 
 ---
 
 ## Technical Requirements & Best Practices
-- **URL Requirement**: Always use the full URL from the browser address bar (must include `xsec_token`).
+- **URL Support**: Supports both full browser URLs and short sharing links from the mobile app.
 - **Auth**: These commands rely on the user's browser cookie (active session in Chrome).
 - **Obsidian Compatibility**: The `save` command is fully optimized for Obsidian vaults.

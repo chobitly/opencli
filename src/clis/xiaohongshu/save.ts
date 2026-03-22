@@ -18,7 +18,7 @@ cli({
   domain: 'www.xiaohongshu.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'url', required: true, positional: true, help: 'Full Note URL (containing xsec_token)' },
+    { name: 'url', required: true, positional: true, help: 'Note URL (supports both full and short links)' },
     { name: 'output', default: './xiaohongshu-saves', help: 'Output directory for the .md file' },
     // Changed name back to 'video' with default true to support --no-video via corrected commanderAdapter
     { name: 'novideo', type: 'boolean', default: false, help: 'Whether to skip download video (default: false).' },
@@ -31,16 +31,19 @@ cli({
     const shouldDownloadVideo = !kwargs.novideo; // Default is true, --novideo sets it to false
     const attachmentsDirName = kwargs.attachments;
 
-    // Extract noteId from URL
-    const noteIdMatch = fullUrl.match(/\/explore\/([^/?#]+)/);
-    const noteId = noteIdMatch ? noteIdMatch[1] : null;
-    if (!noteId) {
-      throw new Error('Invalid XHS URL: Could not extract noteId');
-    }
-
-    // Navigate and extract
+    // Navigate first (to handle short URL redirects)
     await page.goto(fullUrl);
     await page.wait(2);
+
+    // Extract noteId from the current URL (after potential redirect)
+    const currentUrl = await page.evaluate('window.location.href');
+    const noteIdMatch = currentUrl.match(/\/explore\/([^/?#]+)/);
+    const noteId = noteIdMatch ? noteIdMatch[1] : null;
+
+    if (!noteId) {
+      throw new Error(`Invalid XHS URL: Could not extract noteId from ${currentUrl}`);
+    }
+
     const data = await extractNoteData(page, noteId);
     if ('error' in data) {
       throw new Error(data.error);
