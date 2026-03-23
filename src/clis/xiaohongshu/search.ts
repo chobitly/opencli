@@ -18,7 +18,7 @@ cli({
     { name: 'query', required: true, positional: true, help: 'Search keyword' },
     { name: 'limit', type: 'int', default: 20, help: 'Number of results' },
   ],
-  columns: ['rank', 'title', 'author', 'likes'],
+  columns: ['rank', 'title', 'author', 'likes', 'url'],
   func: async (page, kwargs) => {
     const keyword = encodeURIComponent(kwargs.query);
     await page.goto(
@@ -29,34 +29,70 @@ cli({
     // Scroll a couple of times to load more results
     await page.autoScroll({ times: 2 });
 
-    const data = await page.evaluate(`
+    const payload = await page.evaluate(`
       (() => {
-        const notes = document.querySelectorAll('section.note-item');
+        const loginWall = /登录后查看搜索结果/.test(document.body.innerText || '');
+
+        const normalizeUrl = (href) => {
+          if (!href) return '';
+          if (href.startsWith('http://') || href.startsWith('https://')) return href;
+          if (href.startsWith('/')) return 'https://www.xiaohongshu.com' + href;
+          return '';
+        };
+
+        const cleanText = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+
         const results = [];
-        notes.forEach(el => {
+        const seen = new Set();
+
+        document.querySelectorAll('section.note-item').forEach(el => {
           // Skip "related searches" sections
           if (el.classList.contains('query-note-item')) return;
 
-          const titleEl = el.querySelector('.title, .note-title, a.title');
-          const nameEl = el.querySelector('.name, .author-name, .nick-name');
+          const titleEl = el.querySelector('.title, .note-title, a.title, .footer .title span');
+          const nameEl = el.querySelector('a.author .name, .name, .author-name, .nick-name, a.author');
           const likesEl = el.querySelector('.count, .like-count, .like-wrapper .count');
-          const linkEl = el.querySelector('a[href*="/explore/"], a[href*="/search_result/"], a[href*="/note/"]');
+          // Prefer search_result link (preserves xsec_token) over generic /explore/ link
+          const detailLinkEl =
+            el.querySelector('a.cover.mask') ||
+            el.querySelector('a[href*="/search_result/"]') ||
+            el.querySelector('a[href*="/explore/"]') ||
+            el.querySelector('a[href*="/note/"]');
+          const authorLinkEl = el.querySelector('a.author, a[href*="/user/profile/"]');
 
-          const href = linkEl?.getAttribute('href') || '';
-          const noteId = href.match(/\\/(?:explore|note)\\/([a-zA-Z0-9]+)/)?.[1] || '';
+          const url = normalizeUrl(detailLinkEl?.getAttribute('href') || '');
+          if (!url) return;
+
+          const key = url;
+          if (seen.has(key)) return;
+          seen.add(key);
 
           results.push({
-            title: (titleEl?.textContent || '').trim(),
-            author: (nameEl?.textContent || '').trim(),
-            likes: (likesEl?.textContent || '0').trim(),
-            url: noteId ? 'https://www.xiaohongshu.com/explore/' + noteId : '',
+            title: cleanText(titleEl?.textContent || ''),
+            author: cleanText(nameEl?.textContent || ''),
+            likes: cleanText(likesEl?.textContent || '0'),
+            url,
+            author_url: normalizeUrl(authorLinkEl?.getAttribute('href') || ''),
           });
         });
-        return results;
+
+        return {
+          loginWall,
+          results,
+        };
       })()
     `);
 
-    if (!Array.isArray(data)) return [];
+    if (!payload || typeof payload !== 'object') return [];
+
+    if ((payload as any).loginWall) {
+      throw new Error(
+        'Xiaohongshu search results are blocked behind a login wall for the current browser session. ' +
+        'Open https://www.xiaohongshu.com/search_result in Chrome and sign in, then retry.'
+      );
+    }
+
+    const data: any[] = Array.isArray((payload as any).results) ? (payload as any).results : [];
     return data
       .filter((item: any) => item.title)
       .slice(0, kwargs.limit)
