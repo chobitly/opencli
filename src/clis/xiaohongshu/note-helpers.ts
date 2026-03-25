@@ -1,8 +1,7 @@
-/**
- * Shared helpers and types for Xiaohongshu note extraction.
- */
-
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { IPage } from '../../types.js';
+import { saveDocument, httpDownload } from '../../download/index.js';
 
 export interface NoteData {
   noteId: string;
@@ -96,6 +95,108 @@ export async function extractNoteData(page: IPage, noteId: string): Promise<Note
   `);
 
   return data;
+}
+
+export interface SaveNoteOptions {
+  output: string;
+  attachments: string;
+  novideo?: boolean;
+}
+
+/**
+ * Core logic for saving a single Xiaohongshu note.
+ */
+export async function saveNote(page: IPage, noteUrl: string, options: SaveNoteOptions) {
+  const { output: outputBase, attachments: attachmentsDirName, novideo = false } = options;
+  const shouldDownloadVideo = !novideo;
+
+  // Navigate first (to handle short URL redirects)
+  await page.goto(noteUrl);
+  await page.wait(2);
+
+  // Extract noteId from the current URL (after potential redirect)
+  const currentUrl = await page.evaluate('window.location.href') as string;
+  const noteIdMatch = currentUrl.match(/\/explore\/([^/?#]+)/);
+  const noteId = noteIdMatch ? noteIdMatch[1] : null;
+
+  if (!noteId) {
+    throw new Error(`Invalid XHS URL: Could not extract noteId from ${currentUrl}`);
+  }
+
+  const data = await extractNoteData(page, noteId);
+  if ('error' in data) {
+    throw new Error(data.error);
+  }
+
+  // Prepare paths
+  const mediaFolderPath = path.join(outputBase, attachmentsDirName);
+  if (!fs.existsSync(mediaFolderPath)) {
+    fs.mkdirSync(mediaFolderPath, { recursive: true });
+  }
+
+  const headers = {
+    'Referer': 'https://www.xiaohongshu.com/',
+    'User-Agent': await page.evaluate('() => navigator.userAgent') as string
+  };
+
+  let markdownBody = cleanNoteDesc(data.desc) + '\n\n---\n\n';
+  const metadata = {
+    title: data.title,
+    author: `[[${data.author}]]`,
+    userId: data.userId,
+    published: data.time,
+    lastUpdate: data.lastUpdateTime,
+    created: new Date().toISOString(),
+    noteId: data.noteId,
+    source: noteUrl,
+    tags: data.tags,
+  };
+
+  const hasVideo = data.media.some((m) => m.type === 'video');
+
+  // Process Media
+  let mediaCount = 0;
+  for (const item of data.media) {
+    mediaCount++;
+    const isVideo = item.type === 'video';
+
+    if (isVideo && !shouldDownloadVideo) {
+      markdownBody += `## 视频 (未下载)\n\n[点击播放远程链接](${item.url})\n\n`;
+      continue;
+    }
+
+    const ext = isVideo ? 'mp4' : 'jpg';
+    const localFilename = `${data.noteId}_${mediaCount}.${ext}`;
+    const destPath = path.join(mediaFolderPath, localFilename);
+    const downloadResult = await httpDownload(item.url, destPath, { headers });
+
+    if (downloadResult.success) {
+      const relativePath = `./${attachmentsDirName}/${localFilename}`;
+      if (isVideo) {
+        markdownBody += `## 视频\n\n![[${relativePath}]]\n\n`;
+      } else {
+        const finalLabel = (hasVideo && item.type === 'image' && mediaCount === 2) ? '封面' : '图片';
+        markdownBody += `## ${finalLabel}\n\n![[${relativePath}]]\n\n`;
+      }
+    } else {
+      markdownBody += `## ${isVideo ? '视频' : '图片'} (下载失败)\n\n![${isVideo ? '播放' : '预览'}](${item.url})\n\n`;
+    }
+  }
+
+  // Save Markdown (Filename: date prefix + title)
+  const safeTitle = sanitizeFilename(data.title || data.noteId);
+  const datePrefix = data.time ? data.time.split('T')[0] + '-' : '';
+  const mdFilename = `${datePrefix}${safeTitle}.md`;
+  const mdPath = path.join(outputBase, mdFilename);
+  const saveResult = await saveDocument(markdownBody, mdPath, 'markdown', metadata);
+
+  return {
+    success: saveResult.success,
+    filename: mdFilename,
+    error: saveResult.error,
+    noteId: data.noteId,
+    title: data.title
+  };
 }
 
 /**
