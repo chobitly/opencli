@@ -76,8 +76,14 @@ cli({
       const outputPath = path.resolve(String(kwargs.output));
       const mdContent = generateMarkdownTable(finalResults, ['collect', 'id', 'title', 'type', 'likes', 'url']);
       fs.writeFileSync(outputPath, mdContent, 'utf8');
-      // We still return the data for terminal display
-      (finalResults as any).footerExtra = `Saved collection list to: ${outputPath}`;
+      return [{
+        collect: '✅',
+        id: '-',
+        title: `Saved collection list to: ${kwargs.output}`,
+        type: '-',
+        likes: '-',
+        url: '-'
+      }];
     }
 
     return finalResults;
