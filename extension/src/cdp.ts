@@ -65,33 +65,26 @@ export const evaluateAsync = evaluate;
  */
 export async function screenshot(
   tabId: number,
-  options: { format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean } = {},
+  options: { format?: 'png' | 'jpeg'; quality?: number; fullPage?: boolean; width?: number } = {},
 ): Promise<string> {
   await ensureAttached(tabId);
 
   const format = options.format ?? 'png';
 
-  // For full-page screenshots, get the full page dimensions first
-  if (options.fullPage) {
-    // Get full page metrics
-    const metrics = await chrome.debugger.sendCommand({ tabId }, 'Page.getLayoutMetrics') as {
-      contentSize?: { width: number; height: number };
-      cssContentSize?: { width: number; height: number };
-    };
-    const size = metrics.cssContentSize || metrics.contentSize;
-    if (size) {
-      // Set device metrics to full page size
-      await chrome.debugger.sendCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
-        mobile: false,
-        width: Math.ceil(size.width),
-        height: Math.ceil(size.height),
-        deviceScaleFactor: 1,
-      });
-    }
+  if (options.width) {
+    await chrome.debugger.sendCommand({ tabId }, 'Emulation.setDeviceMetricsOverride', {
+      mobile: false,
+      width: options.width,
+      height: 1080,
+      deviceScaleFactor: 1,
+    });
   }
 
   try {
-    const params: Record<string, unknown> = { format };
+    const params: Record<string, unknown> = {
+      format,
+      captureBeyondViewport: options.fullPage ?? false,
+    };
     if (format === 'jpeg' && options.quality !== undefined) {
       params.quality = Math.max(0, Math.min(100, options.quality));
     }
@@ -102,8 +95,7 @@ export async function screenshot(
 
     return result.data;
   } finally {
-    // Reset device metrics if we changed them for full-page
-    if (options.fullPage) {
+    if (options.width) {
       await chrome.debugger.sendCommand({ tabId }, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
     }
   }

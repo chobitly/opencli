@@ -26,6 +26,7 @@ export interface DaemonCommand {
   format?: 'png' | 'jpeg';
   quality?: number;
   fullPage?: boolean;
+  width?: number;
 }
 
 export interface DaemonResult {

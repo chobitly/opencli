@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { cli, Strategy } from '../../registry.js';
 import { extractXhsUserNotes, normalizeXhsUserId } from './user-helpers.js';
+import { generateMarkdownTable } from './note-helpers.js';
 
 async function readUserSnapshot(page: any) {
   return await page.evaluate(`
@@ -23,18 +24,10 @@ async function readUserSnapshot(page: any) {
   `);
 }
 
-function generateMarkdownTable(data: any[], columns: string[]): string {
-  if (data.length === 0) return '';
-  const header = '| ' + columns.join(' | ') + ' |';
-  const divider = '| ' + columns.map(() => '---').join(' | ') + ' |';
-  const rows = data.map(row => '| ' + columns.map(c => String(row[c] ?? '')).join(' | ') + ' |');
-  return [header, divider, ...rows].join('\n');
-}
-
 cli({
   site: 'xiaohongshu',
   name: 'user-collection',
-  description: 'Get public notes from a user profile with a collect column for batch processing',
+  description: 'Get public notes from a user profile with collect and archive columns',
   domain: 'www.xiaohongshu.com',
   strategy: Strategy.COOKIE,
   browser: true,
@@ -43,7 +36,7 @@ cli({
     { name: 'limit', type: 'int', default: 15, help: 'Number of notes to return' },
     { name: 'output', type: 'string', help: 'Optional: save the Markdown table directly to this file' },
   ],
-  columns: ['collect', 'id', 'title', 'type', 'likes', 'url'],
+  columns: ['collect', 'archive', 'id', 'title', 'type', 'likes', 'url'],
   func: async (page, kwargs) => {
     const userId = normalizeXhsUserId(String(kwargs.id));
     const limit = Math.max(1, Number(kwargs.limit ?? 15));
@@ -70,14 +63,16 @@ cli({
       throw new Error('No public notes found for this Xiaohongshu user.');
     }
 
-    const finalResults = results.slice(0, limit).map(r => ({ collect: '', ...r }));
+    const COLUMNS = ['collect', 'archive', 'id', 'title', 'type', 'likes', 'url'];
+    const finalResults = results.slice(0, limit).map(r => ({ collect: '', archive: '', ...r }));
 
     if (kwargs.output) {
       const outputPath = path.resolve(String(kwargs.output));
-      const mdContent = generateMarkdownTable(finalResults, ['collect', 'id', 'title', 'type', 'likes', 'url']);
+      const mdContent = generateMarkdownTable(finalResults, COLUMNS);
       fs.writeFileSync(outputPath, mdContent, 'utf8');
       return [{
         collect: '✅',
+        archive: '-',
         id: '-',
         title: `Saved collection list to: ${kwargs.output}`,
         type: '-',

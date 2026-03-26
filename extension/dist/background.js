@@ -48,27 +48,26 @@ const evaluateAsync = evaluate;
 async function screenshot(tabId, options = {}) {
   await ensureAttached(tabId);
   const format = options.format ?? "png";
-  if (options.fullPage) {
-    const metrics = await chrome.debugger.sendCommand({ tabId }, "Page.getLayoutMetrics");
-    const size = metrics.cssContentSize || metrics.contentSize;
-    if (size) {
-      await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
-        mobile: false,
-        width: Math.ceil(size.width),
-        height: Math.ceil(size.height),
-        deviceScaleFactor: 1
-      });
-    }
+  if (options.width) {
+    await chrome.debugger.sendCommand({ tabId }, "Emulation.setDeviceMetricsOverride", {
+      mobile: false,
+      width: options.width,
+      height: 1080,
+      deviceScaleFactor: 1
+    });
   }
   try {
-    const params = { format };
+    const params = {
+      format,
+      captureBeyondViewport: options.fullPage ?? false
+    };
     if (format === "jpeg" && options.quality !== void 0) {
       params.quality = Math.max(0, Math.min(100, options.quality));
     }
     const result = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", params);
     return result.data;
   } finally {
-    if (options.fullPage) {
+    if (options.width) {
       await chrome.debugger.sendCommand({ tabId }, "Emulation.clearDeviceMetricsOverride").catch(() => {
       });
     }
@@ -265,7 +264,7 @@ async function handleCommand(cmd) {
     };
   }
 }
-function isWebUrl(url) {
+function isDebuggableUrl(url) {
   if (!url) return false;
   return !url.startsWith("chrome://") && !url.startsWith("chrome-extension://");
 }
@@ -273,9 +272,13 @@ async function resolveTabId(tabId, workspace) {
   if (tabId !== void 0) return tabId;
   const windowId = await getAutomationWindow(workspace);
   const tabs = await chrome.tabs.query({ windowId });
-  const webTab = tabs.find((t) => t.id && isWebUrl(t.url));
-  if (webTab?.id) return webTab.id;
-  if (tabs.length > 0 && tabs[0]?.id) return tabs[0].id;
+  const debuggableTab = tabs.find((t) => t.id && isDebuggableUrl(t.url));
+  if (debuggableTab?.id) return debuggableTab.id;
+  const reuseTab = tabs.find((t) => t.id);
+  if (reuseTab?.id) {
+    await chrome.tabs.update(reuseTab.id, { url: "about:blank" });
+    return reuseTab.id;
+  }
   const newTab = await chrome.tabs.create({ windowId, url: "about:blank", active: true });
   if (!newTab.id) throw new Error("Failed to create tab in automation window");
   return newTab.id;
@@ -292,7 +295,7 @@ async function listAutomationTabs(workspace) {
 }
 async function listAutomationWebTabs(workspace) {
   const tabs = await listAutomationTabs(workspace);
-  return tabs.filter((tab) => isWebUrl(tab.url));
+  return tabs.filter((tab) => isDebuggableUrl(tab.url));
 }
 async function handleExec(cmd, workspace) {
   if (!cmd.code) return { id: cmd.id, ok: false, error: "Missing code" };
@@ -401,7 +404,8 @@ async function handleScreenshot(cmd, workspace) {
     const data = await screenshot(tabId, {
       format: cmd.format,
       quality: cmd.quality,
-      fullPage: cmd.fullPage
+      fullPage: cmd.fullPage,
+      width: cmd.width
     });
     return { id: cmd.id, ok: true, data };
   } catch (err) {
@@ -425,7 +429,7 @@ async function handleSessions(cmd) {
   const data = await Promise.all([...automationSessions.entries()].map(async ([workspace, session]) => ({
     workspace,
     windowId: session.windowId,
-    tabCount: (await chrome.tabs.query({ windowId: session.windowId })).filter((tab) => isWebUrl(tab.url)).length,
+    tabCount: (await chrome.tabs.query({ windowId: session.windowId })).filter((tab) => isDebuggableUrl(tab.url)).length,
     idleMsRemaining: Math.max(0, session.idleDeadlineAt - now)
   })));
   return { id: cmd.id, ok: true, data };

@@ -103,9 +103,10 @@ opencli xiaohongshu batch-save list.md [options]
   1. Generate list via `user-collection --output list.md`.
   2. Mark desired notes:
      - **采集**：在 `collect` 列填入 `y`, `x`, `1` 或任何非 `0` 的字符。
-     - **已采集/忽略**：填入 `0` 表示该项已通过其他方式处理，`batch-save` 会跳过。
+     - **已采集/忽略**：填入 `0` 表示该项已通过其他方式处理。
      - **待处理**：保持为空。
   3. Run `batch-save list.md`.
+  4. **自动回写**：`batch-save` 执行成功后，会自动在 `list.md` 的 `archive` 列填入 `[[文件名]]` 双链，并将 `collect` 标记重置为 `0`（已采集状态），方便你追踪采集进度。
 
 ---
 

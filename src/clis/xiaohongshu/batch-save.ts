@@ -1,12 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { cli, Strategy } from '../../registry.js';
-import { saveNote } from './note-helpers.js';
+import { saveNote, generateMarkdownTable } from './note-helpers.js';
 
 cli({
   site: 'xiaohongshu',
   name: 'batch-save',
-  description: '批量采集 Markdown 列表文件中标注好的笔记',
+  description: '批量采集 Markdown 列表文件中标注好的笔记，并回写本地链接',
   domain: 'www.xiaohongshu.com',
   strategy: Strategy.COOKIE,
   args: [
@@ -25,9 +25,8 @@ cli({
     const content = fs.readFileSync(filePath, 'utf8');
     const lines = content.split(/\r?\n/);
     
-    // Simple Markdown table parser
-    // Expects: | collect | id | title | type | likes | url |
-    const results: any[] = [];
+    // Markdown table parser
+    const allRows: any[] = [];
     let headers: string[] = [];
     
     for (const line of lines) {
@@ -45,9 +44,16 @@ cli({
       headers.forEach((h, i) => {
         row[h] = parts[i] || '';
       });
+      allRows.push(row);
+    }
 
+    if (allRows.length === 0) {
+      throw new Error('No valid Markdown table found in the file.');
+    }
+
+    const results: any[] = [];
+    for (const row of allRows) {
       const collectVal = row['collect']?.trim().toLowerCase();
-      // Logic: Non-empty and NOT '0' means collect.
       const isMarked = !!collectVal && collectVal !== '0';
       const noteUrl = row['url'];
 
@@ -58,6 +64,14 @@ cli({
             attachments: String(kwargs.attachments),
             novideo: !!kwargs.novideo,
           });
+          
+          if (saveResult.success) {
+            // Update the row with the local link for back-writing
+            row['archive'] = `[[${saveResult.filename}]]`;
+            // Also mark as '0' (already collected) to avoid double collection next time
+            row['collect'] = '0';
+          }
+
           results.push({
             noteId: saveResult.noteId,
             title: saveResult.title || '(no title)',
@@ -73,8 +87,12 @@ cli({
       }
     }
 
+    // Rewrite the source file with updated archive links
+    const updatedContent = generateMarkdownTable(allRows, headers);
+    fs.writeFileSync(filePath, updatedContent, 'utf8');
+
     if (results.length === 0) {
-      return [{ noteId: '-', title: '-', status: 'No items marked for collection (use y/x/1 in collect column)' }];
+      return [{ noteId: '-', title: '-', status: 'No items marked for collection or already collected (0)' }];
     }
 
     return results;

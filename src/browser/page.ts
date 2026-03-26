@@ -224,6 +224,7 @@ export class Page implements IPage {
       format: options.format,
       quality: options.quality,
       fullPage: options.fullPage,
+      width: options.width,
       ...this._tabOpt(),
     }) as string;
 

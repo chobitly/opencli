@@ -269,20 +269,35 @@ class CDPPage implements IPage {
   }
 
   async screenshot(options: ScreenshotOptions = {}): Promise<string> {
-    const result = await this.bridge.send('Page.captureScreenshot', {
-      format: options.format ?? 'png',
-      quality: options.format === 'jpeg' ? (options.quality ?? 80) : undefined,
-      captureBeyondViewport: options.fullPage ?? false,
-    });
-    const base64 = isRecord(result) && typeof result.data === 'string' ? result.data : '';
-    if (options.path) {
-      const fs = await import('node:fs');
-      const path = await import('node:path');
-      const dir = path.dirname(options.path);
-      await fs.promises.mkdir(dir, { recursive: true });
-      await fs.promises.writeFile(options.path, Buffer.from(base64, 'base64'));
+    if (options.width) {
+      await this.bridge.send('Emulation.setDeviceMetricsOverride', {
+        mobile: false,
+        width: options.width,
+        height: 1080,
+        deviceScaleFactor: 1,
+      });
     }
-    return base64;
+
+    try {
+      const result = await this.bridge.send('Page.captureScreenshot', {
+        format: options.format ?? 'png',
+        quality: options.format === 'jpeg' ? (options.quality ?? 80) : undefined,
+        captureBeyondViewport: options.fullPage ?? false,
+      });
+      const base64 = isRecord(result) && typeof result.data === 'string' ? result.data : '';
+      if (options.path) {
+        const fs = await import('node:fs');
+        const path = await import('node:path');
+        const dir = path.dirname(options.path);
+        await fs.promises.mkdir(dir, { recursive: true });
+        await fs.promises.writeFile(options.path, Buffer.from(base64, 'base64'));
+      }
+      return base64;
+    } finally {
+      if (options.width) {
+        await this.bridge.send('Emulation.clearDeviceMetricsOverride').catch(() => {});
+      }
+    }
   }
 
   async networkRequests(includeStatic: boolean = false): Promise<unknown[]> {

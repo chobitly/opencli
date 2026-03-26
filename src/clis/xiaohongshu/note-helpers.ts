@@ -216,3 +216,14 @@ export function sanitizeFilename(title: string): string {
     .replace(/\s+/g, '_')
     .slice(0, 100);
 }
+
+/**
+ * Generates a Markdown table string from an array of objects and column keys.
+ */
+export function generateMarkdownTable(data: any[], columns: string[]): string {
+  if (data.length === 0) return '';
+  const header = '| ' + columns.join(' | ') + ' |';
+  const divider = '| ' + columns.map(() => '---').join(' | ') + ' |';
+  const rows = data.map(row => '| ' + columns.map(c => String(row[c] ?? '')).join(' | ') + ' |');
+  return [header, divider, ...rows].join('\n');
+}
