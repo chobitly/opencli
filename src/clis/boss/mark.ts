@@ -6,7 +6,8 @@
  *   6=已交换微信, 7=不合适, 8=牛人发起, 11=收藏
  */
 import { cli, Strategy } from '../../registry.js';
-import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './common.js';
+import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './utils.js';
+import { ArgumentError, EmptyResultError } from '../../errors.js';
 
 const LABEL_MAP: Record<string, number> = {
   '新招呼': 1, '沟通中': 2, '已约面': 3, '已获取简历': 4,
@@ -22,7 +23,7 @@ cli({
   navigateBefore: false,
   browser: true,
   args: [
-    { name: 'uid', required: true, help: 'Encrypted UID of the candidate' },
+    { name: 'uid', positional: true, required: true, help: 'Encrypted UID of the candidate' },
     { name: 'label', required: true, help: 'Label name (新招呼/沟通中/已约面/已获取简历/已交换电话/已交换微信/不合适/收藏) or label ID' },
     { name: 'remove', type: 'boolean', default: false, help: 'Remove the label instead of adding' },
   ],
@@ -44,7 +45,7 @@ cli({
       if (entry) {
         labelId = entry[1];
       } else {
-        throw new Error(`未知标签: ${labelInput}。可用标签: ${Object.keys(LABEL_MAP).join(', ')}`);
+        throw new ArgumentError(`未知标签: ${labelInput}。可用标签: ${Object.keys(LABEL_MAP).join(', ')}`);
       }
     }
 
@@ -53,7 +54,7 @@ cli({
     await navigateToChat(page);
 
     const friend = await findFriendByUid(page, kwargs.uid, { checkGreetList: true });
-    if (!friend) throw new Error('未找到该候选人');
+    if (!friend) throw new EmptyResultError('boss candidate search');
 
     const friendName = friend.name || '候选人';
     const action = remove ? 'deleteMark' : 'addMark';

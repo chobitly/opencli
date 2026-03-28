@@ -17,7 +17,8 @@ npm run build
 
 # 4. Run a few checks
 npx tsc --noEmit
-npx vitest run src/
+npm test
+npm run test:adapter
 
 # 5. Link globally (optional, for testing `opencli` command)
 npm link
@@ -40,6 +41,11 @@ strategy: public      # public | cookie | header
 browser: false        # true if browser session is needed
 
 args:
+  query:
+    positional: true
+    type: str
+    required: true
+    description: Search keyword
   limit:
     type: int
     default: 20
@@ -76,7 +82,7 @@ cli({
   domain: 'www.mysite.com',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'query', required: true, help: 'Search query' },
+    { name: 'query', positional: true, required: true, help: 'Search query' },
     { name: 'limit', type: 'int', default: 10, help: 'Max results' },
   ],
   columns: ['title', 'url', 'date'],
@@ -118,12 +124,46 @@ opencli <site> <command> --limit 3 -f json
 opencli <site> <command> -v
 ```
 
+## Arg Design Convention
+
+Use **positional** for the primary, required argument of a command (the "what" — query, symbol, id, url, username). Use **named options** (`--flag`) for secondary/optional configuration (limit, format, sort, page, filters, language, date).
+
+**Rule of thumb**: Think about how the user will type the command. `opencli xueqiu stock SH600519` is more natural than `opencli xueqiu stock --symbol SH600519`.
+
+| Arg type | Positional? | Examples |
+|----------|-------------|----------|
+| Main target (query, symbol, id, url, username) | ✅ `positional: true` | `search '茅台'`, `stock SH600519`, `download BV1xxx` |
+| Configuration (limit, format, sort, page, type, filters) | ❌ Named `--flag` | `--limit 10`, `--format json`, `--sort hot`, `--location seattle` |
+
+Do **not** convert an argument to positional just because it appears first in the file. If the argument is optional, acts like a filter, or selects a mode/configuration, it should usually stay a named option.
+
+YAML example:
+```yaml
+args:
+  query:
+    positional: true     # ← primary arg, user types it directly
+    type: str
+    required: true
+  limit:
+    type: int            # ← config arg, user types --limit 10
+    default: 20
+```
+
+TS example:
+```typescript
+args: [
+  { name: 'query', positional: true, required: true, help: 'Search query' },
+  { name: 'limit', type: 'int', default: 10, help: 'Max results' },
+]
+```
+
 ## Testing
 
 See [TESTING.md](./TESTING.md) for the full guide and exact test locations.
 
 ```bash
-npx vitest run src/           # Unit tests
+npm test                      # Core unit tests (non-adapter)
+npm run test:adapter         # Focused adapter tests: zhihu/twitter/reddit/bilibili
 npx vitest run tests/e2e/     # E2E tests
 npx vitest run                # All tests
 ```
@@ -156,7 +196,8 @@ Common scopes: site name (`twitter`, `reddit`) or module name (`browser`, `pipel
 3. Run the checks that apply:
    ```bash
    npx tsc --noEmit           # Type check
-   npx vitest run src/        # Unit tests
+   npm test                   # Core unit tests
+   npm run test:adapter       # Focused adapter tests (if you touched adapter logic)
    opencli validate           # YAML validation (if applicable)
    ```
 4. Commit using conventional commit format

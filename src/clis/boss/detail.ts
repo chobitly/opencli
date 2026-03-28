@@ -2,7 +2,7 @@
  * BOSS直聘 job detail — fetch full job posting details via browser cookie API.
  */
 import { cli, Strategy } from '../../registry.js';
-import { requirePage, navigateTo, bossFetch, verbose } from './common.js';
+import { requirePage, navigateTo, bossFetch, verbose } from './utils.js';
 
 cli({
   site: 'boss',
@@ -13,7 +13,7 @@ cli({
   navigateBefore: false,
   browser: true,
   args: [
-    { name: 'security-id', required: true, help: 'Security ID from search results (securityId field)' },
+    { name: 'security-id', positional: true, required: true, help: 'Security ID from search results (securityId field)' },
   ],
   columns: [
     'name', 'salary', 'experience', 'degree', 'city', 'district',

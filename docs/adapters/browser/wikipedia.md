@@ -16,9 +16,9 @@
 opencli wikipedia search "quantum computing" --limit 10
 
 # Get article summary
-opencli wikipedia summary --title "Artificial intelligence"
+opencli wikipedia summary "Artificial intelligence"
 
-# Search in other languages
+# Use with other languages
 opencli wikipedia search "人工智能" --lang zh
 
 # JSON output

@@ -1,4 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
+import { CommandExecutionError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 import { fetchJson, getSelfUid, resolveUid } from './utils.js';
 
@@ -8,13 +9,13 @@ cli({
   description: '获取 Bilibili 用户的关注列表',
   strategy: Strategy.COOKIE,
   args: [
-    { name: 'uid', required: false, help: '目标用户 ID（默认为当前登录用户）' },
+    { name: 'uid', positional: true, required: false, help: '目标用户 ID（默认为当前登录用户）' },
     { name: 'page', type: 'int', required: false, default: 1, help: '页码' },
     { name: 'limit', type: 'int', required: false, default: 50, help: '每页数量 (最大 50)' },
   ],
   columns: ['mid', 'name', 'sign', 'following', 'fans'],
   func: async (page: IPage | null, kwargs: any) => {
-    if (!page) throw new Error('Requires browser');
+    if (!page) throw new CommandExecutionError('Browser session required for bilibili following');
 
     // 1. Resolve UID (default to self)
     const uid = kwargs.uid
@@ -30,7 +31,7 @@ cli({
     );
 
     if (payload.code !== 0) {
-      throw new Error(`获取关注列表失败: ${payload.message} (${payload.code})`);
+      throw new CommandExecutionError(`获取关注列表失败: ${payload.message} (${payload.code})`);
     }
 
     const list = payload.data?.list || [];

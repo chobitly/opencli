@@ -1,3 +1,4 @@
+import { CommandExecutionError } from '../../errors.js';
 import { cli, Strategy } from '../../registry.js';
 
 cli({
@@ -24,12 +25,12 @@ cli({
         window.history.pushState({}, '', '/notifications');
         window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     }`);
-    await page.wait(5);
+    await page.waitForCapture(5);
 
     // Verify SPA navigation succeeded
     const currentUrl = await page.evaluate('() => window.location.pathname');
     if (currentUrl !== '/notifications') {
-        throw new Error('SPA navigation to notifications failed. Twitter may have changed its routing.');
+        throw new CommandExecutionError('SPA navigation to notifications failed. Twitter may have changed its routing.');
     }
 
     // 4. Scroll to trigger pagination

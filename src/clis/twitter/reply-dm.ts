@@ -1,3 +1,4 @@
+import { CommandExecutionError } from '../../errors.js';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 
@@ -16,7 +17,7 @@ cli({
   ],
   columns: ['index', 'status', 'user', 'message'],
   func: async (page: IPage | null, kwargs: any) => {
-    if (!page) throw new Error('Requires browser');
+    if (!page) throw new CommandExecutionError('Browser session required for twitter reply-dm');
 
     const messageText: string = kwargs.text;
     const maxSend: number = kwargs.max ?? 20;
@@ -26,7 +27,7 @@ cli({
 
     // Step 1: Navigate to messages to get conversation list
     await page.goto('https://x.com/messages');
-    await page.wait(5);
+    await page.wait({ selector: '[data-testid="primaryColumn"]' });
 
     // Step 2: Collect conversations with scroll-to-load
     const needed = maxSend + 10; // extra buffer for skips

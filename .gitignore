@@ -22,3 +22,6 @@ docs/.vitepress/cache
 
 # test-assets
 test-assets/
+
+# Database files
+*.db

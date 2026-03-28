@@ -15,13 +15,15 @@ pipeline:
   - fetch:
       url: https://hacker-news.firebaseio.com/v0/topstories.json
 
-  - limit: 30
+  - limit: "${{ Math.min((args.limit ? args.limit : 20) + 10, 50) }}"
 
   - map:
       id: ${{ item }}
 
   - fetch:
       url: https://hacker-news.firebaseio.com/v0/item/${{ item.id }}.json
+
+  - filter: item.title && !item.deleted && !item.dead
 
   - map:
       rank: ${{ index + 1 }}

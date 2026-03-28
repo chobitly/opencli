@@ -1,3 +1,4 @@
+import { CommandExecutionError } from '../../errors.js';
 import { cli, Strategy } from '../../registry.js';
 import type { IPage } from '../../types.js';
 
@@ -14,11 +15,11 @@ cli({
   ],
   columns: ['status', 'message', 'text'],
   func: async (page: IPage | null, kwargs: any) => {
-    if (!page) throw new Error('Requires browser');
+    if (!page) throw new CommandExecutionError('Browser session required for twitter reply');
 
     // 1. Navigate to the tweet page
     await page.goto(kwargs.url);
-    await page.wait(5); // Wait for the react application to hydrate
+    await page.wait({ selector: '[data-testid="primaryColumn"]' });
 
     // 2. Automate typing the reply and clicking reply
     const result = await page.evaluate(`(async () => {

@@ -4,7 +4,11 @@
  * Provides a typed send() function that posts a Command and returns a Result.
  */
 
-const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? '19825', 10);
+import { DEFAULT_DAEMON_PORT } from '../constants.js';
+import type { BrowserSessionInfo } from '../types.js';
+import { sleep } from '../utils.js';
+
+const DAEMON_PORT = parseInt(process.env.OPENCLI_DAEMON_PORT ?? String(DEFAULT_DAEMON_PORT), 10);
 const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`;
 
 let _idCounter = 0;
@@ -43,7 +47,10 @@ export async function isDaemonRunning(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${DAEMON_URL}/status`, { signal: controller.signal });
+    const res = await fetch(`${DAEMON_URL}/status`, {
+      headers: { 'X-OpenCLI': '1' },
+      signal: controller.signal,
+    });
     clearTimeout(timer);
     return res.ok;
   } catch {
@@ -58,7 +65,10 @@ export async function isExtensionConnected(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${DAEMON_URL}/status`, { signal: controller.signal });
+    const res = await fetch(`${DAEMON_URL}/status`, {
+      headers: { 'X-OpenCLI': '1' },
+      signal: controller.signal,
+    });
     clearTimeout(timer);
     if (!res.ok) return false;
     const data = await res.json() as { extensionConnected?: boolean };
@@ -70,24 +80,26 @@ export async function isExtensionConnected(): Promise<boolean> {
 
 /**
  * Send a command to the daemon and wait for a result.
- * Retries up to 3 times with 500ms delay for transient failures.
+ * Retries up to 4 times: network errors retry at 500ms,
+ * transient extension errors retry at 1500ms.
  */
 export async function sendCommand(
   action: DaemonCommand['action'],
   params: Omit<DaemonCommand, 'id' | 'action'> = {},
 ): Promise<unknown> {
-  const id = generateId();
-  const command: DaemonCommand = { id, action, ...params };
-  const maxRetries = 3;
+  const maxRetries = 4;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Generate a fresh ID per attempt to avoid daemon-side duplicate detection
+    const id = generateId();
+    const command: DaemonCommand = { id, action, ...params };
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 30000);
 
       const res = await fetch(`${DAEMON_URL}/command`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-OpenCLI': '1' },
         body: JSON.stringify(command),
         signal: controller.signal,
       });
@@ -96,6 +108,17 @@ export async function sendCommand(
       const result = (await res.json()) as DaemonResult;
 
       if (!result.ok) {
+        // Check if error is a transient extension issue worth retrying
+        const errMsg = result.error ?? '';
+        const isTransient = errMsg.includes('Extension disconnected')
+          || errMsg.includes('Extension not connected')
+          || errMsg.includes('attach failed')
+          || errMsg.includes('no longer exists');
+        if (isTransient && attempt < maxRetries) {
+          // Longer delay for extension recovery (service worker restart)
+          await sleep(1500);
+          continue;
+        }
         throw new Error(result.error ?? 'Daemon command failed');
       }
 
@@ -104,7 +127,7 @@ export async function sendCommand(
       const isRetryable = err instanceof TypeError  // fetch network error
         || (err instanceof Error && err.name === 'AbortError');
       if (isRetryable && attempt < maxRetries) {
-        await new Promise(r => setTimeout(r, 500));
+        await sleep(500);
         continue;
       }
       throw err;
@@ -118,4 +141,4 @@ export async function listSessions(): Promise<BrowserSessionInfo[]> {
   const result = await sendCommand('sessions');
   return Array.isArray(result) ? result : [];
 }
-import type { BrowserSessionInfo } from '../types.js';
+

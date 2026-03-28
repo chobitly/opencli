@@ -1,4 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
+import { AuthRequiredError, CommandExecutionError } from '../../errors.js';
 
 // ── Twitter GraphQL constants ──────────────────────────────────────────
 
@@ -122,7 +123,7 @@ cli({
   strategy: Strategy.COOKIE,
   browser: true,
   args: [
-    { name: 'tweet-id', type: 'string', required: true },
+    { name: 'tweet-id', positional: true, type: 'string', required: true },
     { name: 'limit', type: 'int', default: 50 },
   ],
   columns: ['id', 'author', 'text', 'likes', 'retweets', 'url'],
@@ -139,7 +140,7 @@ cli({
     const ct0 = await page.evaluate(`() => {
       return document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('ct0='))?.split('=')[1] || null;
     }`);
-    if (!ct0) throw new Error('Not logged into x.com (no ct0 cookie)');
+    if (!ct0) throw new AuthRequiredError('x.com', 'Not logged into x.com (no ct0 cookie)');
 
     // Build auth headers in TypeScript
     const headers = JSON.stringify({
@@ -164,7 +165,7 @@ cli({
       }`);
 
       if (data?.error) {
-        if (allTweets.length === 0) throw new Error(`HTTP ${data.error}: Tweet not found or queryId expired`);
+        if (allTweets.length === 0) throw new CommandExecutionError(`HTTP ${data.error}: Tweet not found or queryId expired`);
         break;
       }
 

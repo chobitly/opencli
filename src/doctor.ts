@@ -1,17 +1,19 @@
 /**
- * opencli doctor — diagnose and fix browser connectivity.
+ * opencli doctor — diagnose browser connectivity.
  *
  * Simplified for the daemon-based architecture. No more token management,
  * MCP path discovery, or config file scanning.
  */
 
 import chalk from 'chalk';
+import { DEFAULT_DAEMON_PORT } from './constants.js';
 import { checkDaemonStatus } from './browser/discover.js';
 import { BrowserBridge } from './browser/index.js';
 import { listSessions } from './browser/daemon-client.js';
+import { getErrorMessage } from './errors.js';
+import { getRuntimeLabel } from './runtime-detect.js';
 
 export type DoctorOptions = {
-  fix?: boolean;
   yes?: boolean;
   live?: boolean;
   sessions?: boolean;
@@ -28,6 +30,7 @@ export type DoctorReport = {
   cliVersion?: string;
   daemonRunning: boolean;
   extensionConnected: boolean;
+  extensionVersion?: string;
   connectivity?: ConnectivityResult;
   sessions?: Array<{ workspace: string; windowId: number; tabCount: number; idleMsRemaining: number }>;
   issues: string[];
@@ -45,13 +48,25 @@ export async function checkConnectivity(opts?: { timeout?: number }): Promise<Co
     await page.evaluate('1 + 1');
     await mcp.close();
     return { ok: true, durationMs: Date.now() - start };
-  } catch (err: any) {
-    return { ok: false, error: err?.message ?? String(err), durationMs: Date.now() - start };
+  } catch (err) {
+    return { ok: false, error: getErrorMessage(err), durationMs: Date.now() - start };
   }
 }
 
 export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<DoctorReport> {
-  // Run the live connectivity check first — it may auto-start the daemon as a
+  // Try to auto-start daemon if it's not running, so we show accurate status.
+  let initialStatus = await checkDaemonStatus();
+  if (!initialStatus.running) {
+    try {
+      const mcp = new BrowserBridge();
+      await mcp.connect({ timeout: 5 });
+      await mcp.close();
+    } catch {
+      // Auto-start failed; we'll report it below.
+    }
+  }
+
+  // Run the live connectivity check — it may also auto-start the daemon as a
   // side-effect, so we read daemon status only *after* all side-effects settle.
   let connectivity: ConnectivityResult | undefined;
   if (opts.live) {
@@ -71,7 +86,7 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     issues.push(
       'Daemon is running but the Chrome extension is not connected.\n' +
       'Please install the opencli Browser Bridge extension:\n' +
-      '  1. Download from GitHub Releases\n' +
+      '  1. Download from https://github.com/jackwener/opencli/releases\n' +
       '  2. Open chrome://extensions/ → Enable Developer Mode\n' +
       '  3. Click "Load unpacked" → select the extension folder',
     );
@@ -80,10 +95,22 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
     issues.push(`Browser connectivity test failed: ${connectivity.error ?? 'unknown'}`);
   }
 
+  if (status.extensionVersion && opts.cliVersion) {
+    const extMajor = status.extensionVersion.split('.')[0];
+    const cliMajor = opts.cliVersion.split('.')[0];
+    if (extMajor !== cliMajor) {
+      issues.push(
+        `Extension major version mismatch: extension v${status.extensionVersion} ≠ CLI v${opts.cliVersion}\n` +
+        '  Download the latest extension from: https://github.com/jackwener/opencli/releases',
+      );
+    }
+  }
+
   return {
     cliVersion: opts.cliVersion,
     daemonRunning: status.running,
     extensionConnected: status.extensionConnected,
+    extensionVersion: status.extensionVersion,
     connectivity,
     sessions,
     issues,
@@ -91,15 +118,16 @@ export async function runBrowserDoctor(opts: DoctorOptions = {}): Promise<Doctor
 }
 
 export function renderBrowserDoctorReport(report: DoctorReport): string {
-  const lines = [chalk.bold(`opencli v${report.cliVersion ?? 'unknown'} doctor`), ''];
+  const lines = [chalk.bold(`opencli v${report.cliVersion ?? 'unknown'} doctor`) + chalk.dim(` (${getRuntimeLabel()})`), ''];
 
   // Daemon status
   const daemonIcon = report.daemonRunning ? chalk.green('[OK]') : chalk.red('[MISSING]');
-  lines.push(`${daemonIcon} Daemon: ${report.daemonRunning ? 'running on port 19825' : 'not running'}`);
+  lines.push(`${daemonIcon} Daemon: ${report.daemonRunning ? `running on port ${DEFAULT_DAEMON_PORT}` : 'not running'}`);
 
   // Extension status
   const extIcon = report.extensionConnected ? chalk.green('[OK]') : chalk.yellow('[MISSING]');
-  lines.push(`${extIcon} Extension: ${report.extensionConnected ? 'connected' : 'not connected'}`);
+  const extVersion = report.extensionVersion ? chalk.dim(` (v${report.extensionVersion})`) : '';
+  lines.push(`${extIcon} Extension: ${report.extensionConnected ? 'connected' : 'not connected'}${extVersion}`);
 
   // Connectivity
   if (report.connectivity) {
@@ -109,7 +137,7 @@ export function renderBrowserDoctorReport(report: DoctorReport): string {
       : `failed (${report.connectivity.error ?? 'unknown'})`;
     lines.push(`${connIcon} Connectivity: ${detail}`);
   } else {
-    lines.push(`${chalk.dim('[SKIP]')} Connectivity: not tested (use --live)`);
+    lines.push(`${chalk.dim('[SKIP]')} Connectivity: skipped (--no-live)`);
   }
 
   if (report.sessions) {

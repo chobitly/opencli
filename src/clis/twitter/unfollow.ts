@@ -1,4 +1,5 @@
 import { cli, Strategy } from '../../registry.js';
+import { CommandExecutionError } from '../../errors.js';
 import type { IPage } from '../../types.js';
 
 cli({
@@ -13,11 +14,11 @@ cli({
   ],
   columns: ['status', 'message'],
   func: async (page: IPage | null, kwargs: any) => {
-    if (!page) throw new Error('Requires browser');
+    if (!page) throw new CommandExecutionError('Browser session required for twitter unfollow');
     const username = kwargs.username.replace(/^@/, '');
 
     await page.goto(`https://x.com/${username}`);
-    await page.wait(5);
+    await page.wait({ selector: '[data-testid="primaryColumn"]' });
 
     const result = await page.evaluate(`(async () => {
         try {

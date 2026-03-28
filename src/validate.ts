@@ -2,13 +2,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import yaml from 'js-yaml';
+import { getErrorMessage } from './errors.js';
 
 /** All recognized pipeline step names */
 const KNOWN_STEP_NAMES = new Set([
-  'navigate', 'click', 'type', 'wait', 'press', 'snapshot', 'scroll',
+  'navigate', 'click', 'type', 'wait', 'press', 'snapshot',
   'fetch', 'evaluate',
   'select', 'map', 'filter', 'sort', 'limit',
-  'intercept', 'tap',
+  'intercept', 'tap', 'download',
 ]);
 
 export interface FileValidationResult {
@@ -33,13 +34,8 @@ interface ValidatedYamlCliDefinition {
   args?: Record<string, unknown>;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+import { isRecord } from './utils.js';
 
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export function validateClisWithTarget(dirs: string[], target?: string): ValidationReport {
   const results: FileValidationResult[] = [];

@@ -145,3 +145,81 @@ export function networkRequestsJs(includeStatic: boolean): string {
     })()
   `;
 }
+
+/**
+ * Generate JS to wait until the DOM stabilizes (no mutations for `quietMs`),
+ * with a hard cap at `maxMs`. Uses MutationObserver in the browser.
+ *
+ * Returns as soon as the page stops changing, avoiding unnecessary fixed waits.
+ * If document.body is not available, falls back to a fixed sleep of maxMs.
+ */
+export function waitForDomStableJs(maxMs: number, quietMs: number): string {
+  return `
+    new Promise(resolve => {
+      if (!document.body) {
+        setTimeout(() => resolve('nobody'), ${maxMs});
+        return;
+      }
+      let timer = null;
+      let cap = null;
+      const done = (reason) => {
+        clearTimeout(timer);
+        clearTimeout(cap);
+        obs.disconnect();
+        resolve(reason);
+      };
+      const resetQuiet = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => done('quiet'), ${quietMs});
+      };
+      const obs = new MutationObserver(resetQuiet);
+      obs.observe(document.body, { childList: true, subtree: true, attributes: true });
+      resetQuiet();
+      cap = setTimeout(() => done('capped'), ${maxMs});
+    })
+  `;
+}
+
+/**
+ * Generate JS to wait until window.__opencli_xhr has ≥1 captured response.
+ * Polls every 100ms. Resolves 'captured' on success; rejects after maxMs.
+ * Used after installInterceptor() + goto() instead of a fixed sleep.
+ */
+export function waitForCaptureJs(maxMs: number): string {
+  return `
+    new Promise((resolve, reject) => {
+      const deadline = Date.now() + ${maxMs};
+      const check = () => {
+        if ((window.__opencli_xhr || []).length > 0) return resolve('captured');
+        if (Date.now() > deadline) return reject(new Error('No network capture within ${maxMs / 1000}s'));
+        setTimeout(check, 100);
+      };
+      check();
+    })
+  `;
+}
+
+/**
+ * Generate JS to wait until document.querySelector(selector) returns a match.
+ * Uses MutationObserver for near-instant resolution; falls back to reject after timeoutMs.
+ */
+export function waitForSelectorJs(selector: string, timeoutMs: number): string {
+  return `
+    new Promise((resolve, reject) => {
+      const sel = ${JSON.stringify(selector)};
+      if (document.querySelector(sel)) return resolve('found');
+      const cap = setTimeout(() => {
+        obs.disconnect();
+        reject(new Error('Selector not found: ' + sel));
+      }, ${timeoutMs});
+      const obs = new MutationObserver(() => {
+        if (document.querySelector(sel)) {
+          clearTimeout(cap);
+          obs.disconnect();
+          resolve('found');
+        }
+      });
+      obs.observe(document.body || document.documentElement, { childList: true, subtree: true });
+    })
+  `;
+}

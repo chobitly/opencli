@@ -13,6 +13,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import yaml from 'js-yaml';
+import { getErrorMessage } from './errors.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIS_DIR = path.resolve(__dirname, 'clis');
@@ -37,6 +38,8 @@ export interface ManifestEntry {
   columns?: string[];
   pipeline?: Record<string, unknown>[];
   timeout?: number;
+  deprecated?: boolean | string;
+  replacedBy?: string;
   /** 'yaml' or 'ts' — determines how executeCommand loads the handler */
   type: 'yaml' | 'ts';
   /** Relative path from clis/ dir, e.g. 'bilibili/hot.yaml' or 'bilibili/search.js' */
@@ -45,37 +48,10 @@ export interface ManifestEntry {
   navigateBefore?: boolean | string;
 }
 
-interface YamlArgDefinition {
-  type?: string;
-  default?: unknown;
-  required?: boolean;
-  positional?: boolean;
-  description?: string;
-  help?: string;
-  choices?: string[];
-}
+import { type YamlCliDefinition, parseYamlArgs } from './yaml-schema.js';
 
-interface YamlCliDefinition {
-  site?: string;
-  name?: string;
-  description?: string;
-  domain?: string;
-  strategy?: string;
-  browser?: boolean;
-  args?: Record<string, YamlArgDefinition>;
-  columns?: string[];
-  pipeline?: Record<string, unknown>[];
-  timeout?: number;
-  navigateBefore?: boolean | string;
-}
+import { isRecord } from './utils.js';
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function extractBalancedBlock(
   source: string,
@@ -181,7 +157,8 @@ export function parseTsArgsBlock(argsBlock: string): ManifestEntry['args'] {
       choices: parseInlineChoices(body),
     });
 
-    cursor = objectStart + body.length + 2;
+    cursor = objectStart + body.length;
+    if (cursor <= objectStart) break; // safety: prevent infinite loop
   }
 
   return args;
@@ -198,20 +175,7 @@ function scanYaml(filePath: string, site: string): ManifestEntry | null {
     const strategy = strategyStr.toUpperCase();
     const browser = cliDef.browser ?? (strategy !== 'PUBLIC');
 
-    const args: ManifestEntry['args'] = [];
-    if (cliDef.args && typeof cliDef.args === 'object') {
-      for (const [argName, argDef] of Object.entries(cliDef.args)) {
-        args.push({
-          name: argName,
-          type: argDef?.type ?? 'str',
-          default: argDef?.default,
-          required: argDef?.required ?? false,
-          positional: argDef?.positional === true || undefined,
-          help: argDef?.description ?? argDef?.help ?? '',
-          choices: argDef?.choices,
-        });
-      }
-    }
+    const args = parseYamlArgs(cliDef.args);
 
     return {
       site: cliDef.site ?? site,
@@ -224,6 +188,8 @@ function scanYaml(filePath: string, site: string): ManifestEntry | null {
       columns: cliDef.columns,
       pipeline: cliDef.pipeline,
       timeout: cliDef.timeout,
+      deprecated: (cliDef as Record<string, unknown>).deprecated as boolean | string | undefined,
+      replacedBy: (cliDef as Record<string, unknown>).replacedBy as string | undefined,
       type: 'yaml',
       navigateBefore: cliDef.navigateBefore,
     };
@@ -285,9 +251,25 @@ export function scanTs(filePath: string, site: string): ManifestEntry | null {
       entry.args = parseTsArgsBlock(argsBlock);
     }
 
-    // Extract navigateBefore: false
-    const navMatch = src.match(/navigateBefore\s*:\s*(true|false)/);
-    if (navMatch) entry.navigateBefore = navMatch[1] === 'true' ? true : false;
+    // Extract navigateBefore: false / true / 'https://...'
+    const navBoolMatch = src.match(/navigateBefore\s*:\s*(true|false)/);
+    if (navBoolMatch) {
+      entry.navigateBefore = navBoolMatch[1] === 'true';
+    } else {
+      const navStringMatch = src.match(/navigateBefore\s*:\s*['"`]([^'"`]+)['"`]/);
+      if (navStringMatch) entry.navigateBefore = navStringMatch[1];
+    }
+
+    const deprecatedBoolMatch = src.match(/deprecated\s*:\s*(true|false)/);
+    if (deprecatedBoolMatch) {
+      entry.deprecated = deprecatedBoolMatch[1] === 'true';
+    } else {
+      const deprecatedStringMatch = src.match(/deprecated\s*:\s*['"`]([^'"`]+)['"`]/);
+      if (deprecatedStringMatch) entry.deprecated = deprecatedStringMatch[1];
+    }
+
+    const replacedByMatch = src.match(/replacedBy\s*:\s*['"`]([^'"`]+)['"`]/);
+    if (replacedByMatch) entry.replacedBy = replacedByMatch[1];
 
     return entry;
   } catch (err) {
@@ -302,7 +284,7 @@ export function scanTs(filePath: string, site: string): ManifestEntry | null {
  * prefer the TS version (it self-registers and typically has richer logic).
  */
 export function shouldReplaceManifestEntry(current: ManifestEntry, next: ManifestEntry): boolean {
-  if (current.type === next.type) return true;
+  if (current.type === next.type) return false;
   return current.type === 'yaml' && next.type === 'ts';
 }
 
@@ -358,6 +340,29 @@ function main(): void {
   const yamlCount = manifest.filter(e => e.type === 'yaml').length;
   const tsCount = manifest.filter(e => e.type === 'ts').length;
   console.log(`✅ Manifest compiled: ${manifest.length} entries (${yamlCount} YAML, ${tsCount} TS) → ${OUTPUT}`);
+
+  // Restore executable permissions on bin entries.
+  // tsc does not preserve the +x bit, so after a clean rebuild the CLI
+  // entry-point loses its executable permission, causing "Permission denied".
+  // See: https://github.com/jackwener/opencli/issues/446
+  if (process.platform !== 'win32') {
+    const pkgPath = path.resolve(__dirname, '..', 'package.json');
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      const bins: Record<string, string> = typeof pkg.bin === 'string'
+        ? { [pkg.name ?? 'cli']: pkg.bin }
+        : pkg.bin ?? {};
+      for (const binPath of Object.values(bins)) {
+        const abs = path.resolve(__dirname, '..', binPath);
+        if (fs.existsSync(abs)) {
+          fs.chmodSync(abs, 0o755);
+          console.log(`✅ Restored executable permission: ${binPath}`);
+        }
+      }
+    } catch {
+      // Best-effort; never break the build for a permission fix.
+    }
+  }
 }
 
 const entrypoint = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;

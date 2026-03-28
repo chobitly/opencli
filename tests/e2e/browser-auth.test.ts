@@ -80,28 +80,32 @@ describe('login-required commands — graceful failure', () => {
   }, 60_000);
 
   // ── linux-do (requires login — all endpoints need authentication) ──
-  it('linux-do hot fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['linux-do', 'hot', '--limit', '3', '-f', 'json'], 'linux-do hot');
-  }, 60_000);
-
-  it('linux-do latest fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['linux-do', 'latest', '--limit', '3', '-f', 'json'], 'linux-do latest');
+  it('linux-do feed fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['linux-do', 'feed', '--limit', '3', '-f', 'json'], 'linux-do feed');
   }, 60_000);
 
   it('linux-do categories fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['linux-do', 'categories', '--limit', '3', '-f', 'json'], 'linux-do categories');
   }, 60_000);
 
-  it('linux-do category fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['linux-do', 'category', '--slug', 'general', '--id', '1', '--limit', '3', '-f', 'json'], 'linux-do category');
+  it('linux-do tags fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['linux-do', 'tags', '--limit', '3', '-f', 'json'], 'linux-do tags');
   }, 60_000);
 
   it('linux-do topic fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['linux-do', 'topic', '--id', '1', '-f', 'json'], 'linux-do topic');
+    await expectGracefulAuthFailure(['linux-do', 'topic', '1', '-f', 'json'], 'linux-do topic');
   }, 60_000);
 
   it('linux-do search fails gracefully without login', async () => {
-    await expectGracefulAuthFailure(['linux-do', 'search', '--keyword', 'test', '--limit', '3', '-f', 'json'], 'linux-do search');
+    await expectGracefulAuthFailure(['linux-do', 'search', 'test', '--limit', '3', '-f', 'json'], 'linux-do search');
+  }, 60_000);
+
+  it('linux-do user-topics fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['linux-do', 'user-topics', 'test', '--limit', '3', '-f', 'json'], 'linux-do user-topics');
+  }, 60_000);
+
+  it('linux-do user-posts fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['linux-do', 'user-posts', 'test', '--limit', '3', '-f', 'json'], 'linux-do user-posts');
   }, 60_000);
 
   // ── xiaohongshu (requires login) ──
@@ -111,5 +115,39 @@ describe('login-required commands — graceful failure', () => {
 
   it('xiaohongshu notifications fails gracefully without login', async () => {
     await expectGracefulAuthFailure(['xiaohongshu', 'notifications', '--limit', '3', '-f', 'json'], 'xiaohongshu notifications');
+  }, 60_000);
+
+  // ── pixiv (requires login) ──
+  it('pixiv ranking fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'ranking', '--limit', '3', '-f', 'json'], 'pixiv ranking');
+  }, 60_000);
+
+  it('pixiv search fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'search', '初音ミク', '--limit', '3', '-f', 'json'], 'pixiv search');
+  }, 60_000);
+
+  it('pixiv user fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'user', '11', '-f', 'json'], 'pixiv user');
+  }, 60_000);
+
+  it('pixiv illusts fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'illusts', '11', '--limit', '3', '-f', 'json'], 'pixiv illusts');
+  }, 60_000);
+
+  it('pixiv detail fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'detail', '123456', '-f', 'json'], 'pixiv detail');
+  }, 60_000);
+
+  it('pixiv download fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['pixiv', 'download', '123456', '--output', '/tmp/pixiv-e2e-test', '-f', 'json'], 'pixiv download');
+  }, 60_000);
+
+  // ── yollomi (requires login session) ──
+  it('yollomi generate fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['yollomi', 'generate', 'a cute cat', '--no-download', '-f', 'json'], 'yollomi generate');
+  }, 60_000);
+
+  it('yollomi video fails gracefully without login', async () => {
+    await expectGracefulAuthFailure(['yollomi', 'video', 'a sunset over the ocean', '--no-download', '-f', 'json'], 'yollomi video');
   }, 60_000);
 });

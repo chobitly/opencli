@@ -2,7 +2,7 @@
  * BOSS直聘 invite — send interview invitation to a candidate.
  */
 import { cli, Strategy } from '../../registry.js';
-import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './common.js';
+import { requirePage, navigateToChat, bossFetch, findFriendByUid, verbose } from './utils.js';
 
 cli({
   site: 'boss',
@@ -13,7 +13,7 @@ cli({
   navigateBefore: false,
   browser: true,
   args: [
-    { name: 'uid', required: true, help: 'Encrypted UID of the candidate' },
+    { name: 'uid', positional: true, required: true, help: 'Encrypted UID of the candidate' },
     { name: 'time', required: true, help: 'Interview time (e.g. 2025-04-01 14:00)' },
     { name: 'address', default: '', help: 'Interview address (uses saved address if empty)' },
     { name: 'contact', default: '', help: 'Contact person name (uses saved contact if empty)' },

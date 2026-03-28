@@ -1,3 +1,4 @@
+import { AuthRequiredError, SelectorError } from '../../errors.js';
 import { cli, Strategy } from '../../registry.js';
 
 cli({
@@ -8,7 +9,7 @@ cli({
   strategy: Strategy.INTERCEPT,
   browser: true,
   args: [
-    { name: 'user', type: 'string', required: false },
+    { name: 'user', positional: true, type: 'string', required: false },
     { name: 'limit', type: 'int', default: 50 },
   ],
   columns: ['screen_name', 'name', 'bio', 'followers'],
@@ -18,7 +19,7 @@ cli({
     // If no user is specified, figure out the logged-in user's handle
     if (!targetUser) {
         await page.goto('https://x.com/home');
-        await page.wait(5);
+        await page.wait({ selector: '[data-testid="primaryColumn"]' });
 
         const href = await page.evaluate(`() => {
             const link = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
@@ -26,7 +27,7 @@ cli({
         }`);
 
         if (!href) {
-            throw new Error('Could not find logged-in user profile link. Are you logged in?');
+            throw new AuthRequiredError('x.com', 'Could not find logged-in user profile link. Are you logged in?');
         }
         targetUser = href.replace('/', '');
     }
@@ -55,9 +56,9 @@ cli({
         return false;
     }`);
     if (!clicked) {
-        throw new Error('Could not find followers link on profile page. Twitter may have changed the layout.');
+        throw new SelectorError('Twitter followers link', 'Twitter may have changed the layout.');
     }
-    await page.wait(5);
+    await page.waitForCapture(5);
 
     // 4. Scroll to trigger pagination API calls
     await page.autoScroll({ times: Math.ceil(kwargs.limit / 20), delayMs: 2000 });
