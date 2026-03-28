@@ -29,9 +29,9 @@ export const screenshotCommand = cli({
     const base64 = await page.screenshot({
       path: absPath,
       fullPage: kwargs.full === true || kwargs.full === 'true',
-      quality: kwargs.quality ? parseInt(kwargs.quality, 10) : undefined,
+      quality: kwargs.quality ? parseInt(kwargs.quality, 80) : 80,
       format: kwargs['img-format'] as 'png' | 'jpeg',
-      width: kwargs.width ? parseInt(kwargs.width, 10) : undefined,
+      width: kwargs.width ? parseInt(kwargs.width, 1280) : 1280,
     });
 
     const stats = fs.statSync(absPath);
