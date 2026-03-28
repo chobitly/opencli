@@ -20,6 +20,8 @@ description: Skills for capturing high-quality full-page or viewport screenshots
 >   - `opencli generic screenshot https://github.com/jackwener/opencli --output ./opencli.png`
 > - **指定 JPEG 质量**：
 >   - `opencli generic screenshot --img-format jpeg --quality 80`
+> - **移动端布局截图 (750px)**：
+>   - `opencli generic screenshot https://m.baidu.com --width 750 --output ./mobile.png`
 > ---
 > **AI Agent Note**: Skip the section above and follow the technical specifications below.
 
