@@ -47,7 +47,7 @@ cli({
     let results = extractXhsUserNotes(snapshot ?? {}, userId);
     let previousCount = results.length;
 
-    for (let i = 0; results.length < limit && i < 4; i += 1) {
+    for (let i = 0; results.length < limit && i < 30; i += 1) {
       await page.autoScroll({ times: 1, delayMs: 1500 });
       await page.wait(1);
 
@@ -64,7 +64,7 @@ cli({
     }
 
     const COLUMNS = ['collect', 'archive', 'id', 'title', 'type', 'likes', 'url'];
-    const finalResults = results.slice(0, limit).map(r => ({ collect: '', archive: '', ...r }));
+    const finalResults = results.slice(0, limit).map(r => ({ collect: 'y', archive: '', ...r }));
 
     if (kwargs.output) {
       const outputPath = path.resolve(String(kwargs.output));
