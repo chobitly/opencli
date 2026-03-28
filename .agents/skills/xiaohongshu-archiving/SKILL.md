@@ -110,6 +110,29 @@ opencli xiaohongshu batch-save list.md [options]
 
 ---
 
+### 6. Collection Table Format (`batch-save` 格式规范)
+`batch-save` 命令通过解析 Markdown 表格来工作。你可以手动创建、编辑或从其他 AI 工具导出符合以下格式的表格，以对接零碎采集的各种场景。
+```
+| collect | archive | id | title | type | likes | collected | memo | note | url |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+```
+
+**表格列说明：**
+
+| 列名 (Column) | 说明 (Description) |
+| --- | --- |
+| `collect` | **采集标记**。填入 `y` / `1` / `x` 等非零字符触发下载；`0` 或留空则跳过。 |
+| `url` | **笔记链接 (必填)**。支持网页长链或 APP 分享短链 (`xhslink.com`)。 |
+| `archive` | **本地引用**。采集成功后由程序自动回写 `[[文件名]]` 双链。 |
+| `collected` | **收藏时间 (可选)**。若有值，则写入笔记 YAML 属性中的 `collected` 字段。 |
+| `memo` | **简短备注 (可选)**。若有值，则写入笔记 YAML 属性中的 `memo` 字段。 |
+| `note` | **长篇笔记 (可选)**。若有值，则写在 Markdown 正文最开头，并以 `---` 与原描述分隔。 |
+
+> [!TIP]
+> **多场景对接**：你可以将手机端的笔记链接手动整理到此类表格中，一次性运行 `batch-save` 进行批量归档。
+
+---
+
 ## Technical Requirements & Best Practices
 - **URL Support**: Supports both full browser URLs and short sharing links from the mobile app.
 - **Auth**: These commands rely on the user's browser cookie (active session in Chrome).

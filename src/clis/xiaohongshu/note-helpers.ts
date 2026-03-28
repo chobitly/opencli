@@ -101,13 +101,16 @@ export interface SaveNoteOptions {
   output: string;
   attachments: string;
   novideo?: boolean;
+  collected?: string;
+  memo?: string;
+  note?: string;
 }
 
 /**
  * Core logic for saving a single Xiaohongshu note.
  */
 export async function saveNote(page: IPage, noteUrl: string, options: SaveNoteOptions) {
-  const { output: outputBase, attachments: attachmentsDirName, novideo = false } = options;
+  const { output: outputBase, attachments: attachmentsDirName, novideo = false, collected, memo, note } = options;
   const shouldDownloadVideo = !novideo;
 
   // Navigate first (to handle short URL redirects)
@@ -139,7 +142,11 @@ export async function saveNote(page: IPage, noteUrl: string, options: SaveNoteOp
     'User-Agent': await page.evaluate('() => navigator.userAgent') as string
   };
 
-  let markdownBody = cleanNoteDesc(data.desc) + '\n\n---\n\n';
+  let markdownBody = '';
+  if (note && note.trim()) {
+    markdownBody += `${note.trim()}\n\n---\n\n`;
+  }
+  markdownBody += cleanNoteDesc(data.desc) + '\n\n---\n\n';
   const metadata = {
     title: data.title,
     author: `[[${data.author}]]`,
@@ -150,6 +157,8 @@ export async function saveNote(page: IPage, noteUrl: string, options: SaveNoteOp
     noteId: data.noteId,
     source: noteUrl,
     tags: data.tags,
+    ...(collected && { collected }),
+    ...(memo && { memo }),
   };
 
   const hasVideo = data.media.some((m) => m.type === 'video');

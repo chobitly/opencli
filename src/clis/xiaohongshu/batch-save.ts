@@ -63,6 +63,9 @@ cli({
             output: String(kwargs.output),
             attachments: String(kwargs.attachments),
             novideo: !!kwargs.novideo,
+            collected: row['collected'],
+            memo: row['memo'],
+            note: row['note'],
           });
           
           if (saveResult.success) {

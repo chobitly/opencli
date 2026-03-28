@@ -19,6 +19,9 @@ cli({
     { name: 'output', default: './xiaohongshu-saves', help: 'Output directory for the .md file' },
     { name: 'novideo', type: 'boolean', default: false, help: 'Whether to skip download video (default: false).' },
     { name: 'attachments', default: 'attachments', help: 'Name of the attachments folder (default: attachments)' },
+    { name: 'collected', help: 'Optional: Collection timestamp to record in metadata' },
+    { name: 'memo', help: 'Optional: Short memo to record in metadata' },
+    { name: 'note', help: 'Optional: Note to prepend to the Markdown content' },
   ],
   columns: ['noteId', 'title', 'status'],
   func: async (page, kwargs) => {
@@ -26,6 +29,9 @@ cli({
       output: String(kwargs.output),
       attachments: String(kwargs.attachments),
       novideo: !!kwargs.novideo,
+      collected: kwargs.collected ? String(kwargs.collected) : undefined,
+      memo: kwargs.memo ? String(kwargs.memo) : undefined,
+      note: kwargs.note ? String(kwargs.note) : undefined,
     });
 
     return [{

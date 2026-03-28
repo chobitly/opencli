@@ -63,8 +63,8 @@ cli({
       throw new Error('No public notes found for this Xiaohongshu user.');
     }
 
-    const COLUMNS = ['collect', 'archive', 'id', 'title', 'type', 'likes', 'url'];
-    const finalResults = results.slice(0, limit).map(r => ({ collect: 'y', archive: '', ...r }));
+    const COLUMNS = ['collect', 'archive', 'id', 'title', 'type', 'likes', 'collected', 'memo', 'note', 'url'];
+    const finalResults = results.slice(0, limit).map(r => ({ collect: 'y', archive: '', collected: '', memo: '', note: '', ...r }));
 
     if (kwargs.output) {
       const outputPath = path.resolve(String(kwargs.output));
