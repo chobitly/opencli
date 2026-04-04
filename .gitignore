@@ -6,6 +6,11 @@ dist/
 .mcp.json
 *.log
 .DS_Store
+.obsidian/
+tmp/
+playwright-report/
+test-*/
+*-saves/
 
 # VitePress
 docs/.vitepress/dist
@@ -19,9 +24,6 @@ docs/.vitepress/cache
 .windsurf
 .claude
 .cortex
-
-# test-assets
-test-assets/
 
 # Database files
 *.db
